@@ -2,6 +2,12 @@
 
 
 ## Installation
+### Pip
+```
+pip3 install rockset-stacky
+```
+
+### Manual
 `stacky` requires the following python3 packages installed on the host 
 1. asciitree
 2. ansicolors
