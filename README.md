@@ -25,6 +25,7 @@ Syntax is as follows:
     - `stacky stack push [--no-pr]`: push to origin, optionally not creating PRs if they don’t exist
 - `stacky upstack onto <target>`: restack the current branch (and everything upstack from it) on top of another branch (like `gt us onto`), useful if you’ve made a separate PR that you want to include in your stack
 - `stacky continue`: continue an interrupted stacky sync command (because of conflicts)
+- `stacky update`: will pull changes from github and update master
 
 The indicators (`*`, `~`, `!`) mean:
 - `*` — this is the current branch
@@ -49,7 +50,6 @@ positional arguments:
     upstack (us)        Operations on the current upstack
     downstack (ds)      Operations on the current downstack
     update              Update repo
-    import              Import Graphite stack
     adopt               Adopt one branch
     land                Land bottom-most PR on current stack
     push                Alias for downstack push
@@ -62,3 +62,13 @@ optional arguments:
   --color {always,auto,never}
                         Colorize output and error
 ```
+
+### Sample Workflow 
+1. Create a new working branch with `stacky branch new <branch_name>`. 
+2. Update files and add files to git tracking like normal (`git add`)
+3. Commit updates with `stacky commit -m <commit_message>`
+4. Create a stacked branch with `stacky branch new <downstack_branch_name>`
+5. Update files and add files in downstack branch (`git add`)
+6. `stacky push` will create 2 PRs. Top branch will have a PR against master and bottom branch will have a PR against the top branch.
+7. Update the upstack branch and run `stacky commit`. This will rebase changes in the upstack branch to the downstack branch
+8. `stacky push` will update both the PRs.
