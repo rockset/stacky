@@ -9,6 +9,8 @@
 ```
 sudo pip3 install asciitree ansicolors simple-term-menu
 ```
+Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
+
 After which `stacky` can be directly run with `./stacky`. We would recommend symlinking `stacky` into your path so you can use it anywhere
 
 ## Usage
@@ -27,7 +29,7 @@ Syntax is as follows:
     - `stacky stack push [--no-pr]`: push to origin, optionally not creating PRs if they don’t exist
 - `stacky upstack onto <target>`: restack the current branch (and everything upstack from it) on top of another branch (like `gt us onto`), useful if you’ve made a separate PR that you want to include in your stack
 - `stacky continue`: continue an interrupted stacky sync command (because of conflicts)
-- `stacky update`: will pull changes from github and update master
+- `stacky update`: will pull changes from github and update master, and deletes branches that have been merged into master
 
 The indicators (`*`, `~`, `!`) mean:
 - `*` — this is the current branch
