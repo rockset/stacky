@@ -8,7 +8,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="rockset-stacky",  
-    version="1.0.8",  
+    version="1.0.10",  
     description="""
     stacky is a tool to manage stacks of PRs. This allows developers to easily 
     manage many smaller, more targeted PRs that depend on each other.
@@ -19,7 +19,8 @@ setup(
     author="Rockset", 
     author_email="tudor@rockset.com", 
     keywords="github, stack, pr, pull request",
-    py_modules=["stacky"],
+    package_dir={"": "src"}, 
+    packages=find_packages(where="src"),
     python_requires=">=3.8, <4",
     install_requires=["asciitree", "ansicolors", "simple-term-menu"],  
     entry_points={

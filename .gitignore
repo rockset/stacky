@@ -1,2 +1,5 @@
 dist/
 rockset_stacky.egg-info/
+src/rockset_stacky.egg-info/
+build/
+src/stacky/__pycache__

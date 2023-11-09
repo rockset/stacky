@@ -13,11 +13,14 @@ pip3 install rockset-stacky
 2. ansicolors
 3. simple-term-menu
 ```
-sudo pip3 install asciitree ansicolors simple-term-menu
+pip3 install asciitree ansicolors simple-term-menu
 ```
-Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
 
-After which `stacky` can be directly run with `./stacky`. We would recommend symlinking `stacky` into your path so you can use it anywhere
+After which `stacky` can be directly run with `./src/stacky/stacky.py`. We would recommend symlinking `stacky.py` into your path so you can use it anywhere
+
+
+## Accessing Github
+Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
 
 ## Usage
 `stacky` stores all information locally, within your git repository
@@ -145,4 +148,3 @@ $> stacky commit -m "updated new file"
 
 ## License
 - [MIT License](https://github.com/rockset/stacky/blob/master/LICENSE.txt)
-
