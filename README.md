@@ -2,16 +2,25 @@
 
 
 ## Installation
+### Pip
+```
+pip3 install rockset-stacky
+```
+
+### Manual
 `stacky` requires the following python3 packages installed on the host 
 1. asciitree
 2. ansicolors
 3. simple-term-menu
 ```
-sudo pip3 install asciitree ansicolors simple-term-menu
+pip3 install asciitree ansicolors simple-term-menu
 ```
-Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
 
-After which `stacky` can be directly run with `./stacky`. We would recommend symlinking `stacky` into your path so you can use it anywhere
+After which `stacky` can be directly run with `./src/stacky/stacky.py`. We would recommend symlinking `stacky.py` into your path so you can use it anywhere
+
+
+## Accessing Github
+Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
 
 ## Usage
 `stacky` stores all information locally, within your git repository
@@ -138,23 +147,4 @@ $> stacky commit -m "updated new file"
 ```
 
 ## License
-MIT License
-
-Copyright (c) 2023 Rockset
-Permission is hereby granted, free of charge, to any person obtaining a copy 
-of this software and associated documentation files (the “Software”), to deal 
-in the Software without restriction, including without limitation the rights 
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
-copies of the Software, and to permit persons to whom the Software is 
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all 
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
-SOFTWARE.
+- [MIT License](https://github.com/rockset/stacky/blob/master/LICENSE.txt)
