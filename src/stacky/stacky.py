@@ -30,7 +30,7 @@ import shlex
 import subprocess
 import sys
 from argparse import ArgumentParser
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import asciitree
 import colors
@@ -246,7 +246,11 @@ def get_pr_info(branch, *, full=False):
     infos = {info["id"]: info for info in infos}
     open_prs = [info for info in infos.values() if info["state"] == "OPEN"]
     if len(open_prs) > 1:
-        die("Branch {} has more than one open PR: {}", branch, ", ".join(open_prs))
+        die(
+            "Branch {} has more than one open PR: {}",
+            branch,
+            ", ".join([str(pr) for pr in open_prs]),
+        )
     return infos, open_prs[0] if open_prs else None
 
 
