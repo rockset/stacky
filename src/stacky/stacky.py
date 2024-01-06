@@ -29,6 +29,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from argparse import ArgumentParser
 from typing import List, Optional
 
@@ -38,6 +39,8 @@ from simple_term_menu import TerminalMenu
 
 _LOGGING_FORMAT = "%(asctime)s %(module)s %(levelname)s: %(message)s"
 
+# 2 minutes ought to be enough for anybody ;-)
+MAX_SSH_MUX_LIFETIME = 120
 COLOR_STDOUT = os.isatty(1)
 COLOR_STDERR = os.isatty(2)
 IS_TERMINAL = os.isatty(1) and os.isatty(2)
@@ -61,6 +64,7 @@ class StackyConfig:
     skip_confirm: bool = False
     change_to_main: bool = False
     change_to_adopted: bool = False
+    share_ssh_session: bool = False
 
     def read_one_config(self, config_path: str):
         rawconfig = configparser.ConfigParser()
@@ -74,6 +78,9 @@ class StackyConfig:
             )
             self.change_to_adopted = rawconfig.get(
                 "UI", "change_to_adopted", fallback=self.change_to_adopted
+            )
+            self.share_ssh_session = rawconfig.get(
+                "UI", "share_ssh_session", fallback=self.share_ssh_session
             )
 
 
@@ -123,7 +130,21 @@ class ExitException(BaseException):
         super().__init__(fmt.format(*args, **kwargs))
 
 
+def stop_muxed_ssh(remote: str = "origin"):
+    if CONFIG.share_ssh_session:
+        hostish = get_remote_type(remote)
+        if hostish is not None:
+            cmd = gen_ssh_mux_cmd()
+            cmd.append("-O")
+            cmd.append("exit")
+            cmd.append(hostish)
+            subprocess.Popen(cmd, stderr=subprocess.DEVNULL)
+
+
 def die(*args, **kwargs):
+    # We are taking a wild guess at what is the remote ...
+    # TODO (mpatou) fix the assumption about the remote
+    stop_muxed_ssh()
     raise ExitException(*args, **kwargs)
 
 
@@ -715,6 +736,8 @@ def create_gh_pr(b):
 
 
 def do_push(forest, *, force=False, pr=False):
+    remote = "origin"
+    start_muxed_ssh(remote)
     if pr:
         load_pr_info_for_forest(forest)
     print_forest(forest)
@@ -809,6 +832,8 @@ def do_push(forest, *, force=False, pr=False):
             )
         elif pr_action == PR_CREATE:
             create_gh_pr(b)
+
+    stop_muxed_ssh(remote)
 
 
 def cmd_stack_push(stack, args):
@@ -1015,8 +1040,101 @@ def get_bottom_level_branches_as_forest(stack):
     ]
 
 
+def get_remote_type(remote: str = "origin") -> Optional[str]:
+    out = run(["git", "remote", "-v"])
+    for l in out.split("\n"):
+        match = re.match(
+            r"^{}\s+(?:ssh://)?([^/]*):(?!//).*\s+\(push\)$".format(remote), l
+        )
+        if match:
+            sshish_host = match.group(1)
+            return sshish_host
+
+
+def gen_ssh_mux_cmd() -> List[str]:
+    args = [
+        "ssh",
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        f"ControlPersist={MAX_SSH_MUX_LIFETIME}",
+        "-o",
+        "ControlPath=~/.ssh/stacky-%C",
+    ]
+
+    return args
+
+
+def start_muxed_ssh(remote: str = "origin"):
+    if not CONFIG.share_ssh_session:
+        return
+    hostish = get_remote_type(remote)
+    if hostish is not None:
+        info("Creating a muxed ssh connection")
+        cmd = gen_ssh_mux_cmd()
+        os.environ["GIT_SSH_COMMAND"] = " ".join(cmd)
+        cmd.append("-MNf")
+        cmd.append(hostish)
+        # We don't want to use the run() wrapper because
+        # we don't want to wait for the process to finish
+
+        p = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+        # Wait a little bit for the connection to establish
+        # before carrying on
+        while p.poll() is None:
+            time.sleep(1)
+        if p.returncode != 0:
+            error = p.stderr.read()
+            die(
+                f"Failed to start ssh muxed connection, error was: {error.decode('utf-8').strip()}"
+            )
+
+
+def get_branches_to_delete(forest):
+    deletes = []
+    for b in depth_first(forest):
+        if not b.parent or b.open_pr_info:
+            continue
+        for pr_info in b.pr_info.values():
+            if pr_info["state"] != "MERGED":
+                continue
+            cout(
+                "- Will delete branch {}, PR #{} merged into {}\n",
+                b.name,
+                pr_info["number"],
+                b.parent.name,
+            )
+            deletes.append(b)
+            for c in b.children:
+                cout(
+                    "- Will reparent branch {} onto {}\n",
+                    c.name,
+                    b.parent.name,
+                )
+            break
+    return deletes
+
+
+def delete_branches(stack, deletes):
+    global CURRENT_BRANCH
+    # Make sure we're not trying to delete the current branch
+    for b in deletes:
+        for c in b.children:
+            info("Reparenting {} onto {}", c.name, b.parent.name)
+            c.parent = b.parent
+            set_parent(c.name, b.parent.name)
+        info("Deleting {}", b.name)
+        if b.name == CURRENT_BRANCH:
+            new_branch = next(iter(stack.bottoms))
+            info("About to delete current branch, switching to {}", new_branch.name)
+            run(["git", "checkout", new_branch.name])
+            CURRENT_BRANCH = new_branch
+        run(["git", "branch", "-D", b.name])
+
+
 def cmd_update(stack, args):
     remote = "origin"
+    start_muxed_ssh(remote)
     info("Fetching from {}", remote)
     run(["git", "fetch", remote])
 
@@ -1043,44 +1161,12 @@ def cmd_update(stack, args):
     forest = get_bottom_level_branches_as_forest(stack)
     load_pr_info_for_forest(forest)
 
-    deletes = []
-    for b in depth_first(forest):
-        if not b.parent or b.open_pr_info:
-            continue
-        for pr_info in b.pr_info.values():
-            if pr_info["state"] != "MERGED":
-                continue
-            cout(
-                "- Will delete branch {}, PR #{} merged into {}\n",
-                b.name,
-                pr_info["number"],
-                b.parent.name,
-            )
-            deletes.append(b)
-            for c in b.children:
-                cout(
-                    "- Will reparent branch {} onto {}\n",
-                    c.name,
-                    b.parent.name,
-                )
-            break
-
+    deletes = get_branches_to_delete(forest)
     if deletes and not args.force:
         confirm()
 
-    # Make sure we're not trying to delete the current branch
-    for b in deletes:
-        for c in b.children:
-            info("Reparenting {} onto {}", c.name, b.parent.name)
-            c.parent = b.parent
-            set_parent(c.name, b.parent.name)
-        info("Deleting {}", b.name)
-        if b.name == CURRENT_BRANCH:
-            new_branch = next(iter(stack.bottoms))
-            info("About to delete current branch, switching to {}", new_branch.name)
-            run(["git", "checkout", new_branch.name])
-            CURRENT_BRANCH = new_branch
-        run(["git", "branch", "-D", b.name])
+    delete_branches(stack, deletes)
+    stop_muxed_ssh(remote)
 
 
 def cmd_import(stack, args):
