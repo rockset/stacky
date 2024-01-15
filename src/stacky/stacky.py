@@ -662,9 +662,20 @@ def find_reviewers(b) -> Optional[List[str]]:
     return
 
 
-def create_gh_pr(b):
+def create_gh_pr(b, prefix):
     cout("Creating PR for {}\n", b.name, fg="green")
-    cmd = ["gh", "pr", "create", "--head", b.name, "--base", b.parent.name]
+    parent_prefix = ""
+    if b.parent.name not in STACK_BOTTOMS:
+        parent_prefix = prefix
+    cmd = [
+        "gh",
+        "pr",
+        "create",
+        "--head",
+        f"{prefix}{b.name}",
+        "--base",
+        f"{parent_prefix}{b.parent.name}",
+    ]
     match = re.match(r"([A-Z]{3,}-\d{1,})($|-.*)", b.name)
     reviewers = find_reviewers(b)
     if match:
@@ -714,7 +725,7 @@ def create_gh_pr(b):
     )
 
 
-def do_push(forest, *, force=False, pr=False):
+def do_push(forest, *, force=False, pr=False, remote_name="origin"):
     if pr:
         load_pr_info_for_forest(forest)
     print_forest(forest)
@@ -781,6 +792,18 @@ def do_push(forest, *, force=False, pr=False):
     if actions and not force:
         confirm()
 
+    # Figure out if we need to add a prefix to the branch
+    # ie. user:foo
+    # We should call gh repo set-default before doing that
+    val = run(["git", "config", f"remote.{remote_name}.gh-resolved"], check=False)
+    if val is not None and "/" in val:
+        # If there is a "/" in the gh-resolved it means that the repo where
+        # the should be created is not the same as the one where the push will
+        # be made, we need to add a prefix to the branch in the gh pr command
+        val = run(["git", "config", f"remote.{remote_name}.url"])
+        prefix = f'{val.split(":")[1].split("/")[0]}:'
+    else:
+        prefix = ""
     for b, push, pr_action in actions:
         if push:
             cout("Pushing {}\n", b.name, fg="green")
@@ -808,7 +831,7 @@ def do_push(forest, *, force=False, pr=False):
                 out=True,
             )
         elif pr_action == PR_CREATE:
-            create_gh_pr(b)
+            create_gh_pr(b, prefix)
 
 
 def cmd_stack_push(stack, args):
@@ -1253,6 +1276,12 @@ def main():
             default="auto",
             choices=["always", "auto", "never"],
             help="Colorize output and error",
+        )
+        parser.add_argument(
+            "--remote-name",
+            "-r",
+            default="origin",
+            help="name of the git remote where branches will be pushed",
         )
 
         subparsers = parser.add_subparsers(required=True, dest="command")
