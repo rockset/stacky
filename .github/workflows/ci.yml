@@ -41,6 +41,17 @@ jobs:
           options: "--check --verbose"
           src: "./src"
 
+  unittest:
+    name: run unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5.0.0
+        with:
+          python-version: '3.10'
+      - run: pip install asciitree ansicolors simple-term-menu
+      - run: ./src/stacky/stacky_test.py
+
   typecheck:
     name: static type check
     runs-on: ubuntu-latest
