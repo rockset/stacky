@@ -2,30 +2,53 @@
 import unittest
 from unittest import mock
 from unittest.mock import MagicMock
-from stacky import PRInfos, read_config, get_top_level_dir
+
+from stacky import PRInfos, find_issue_marker, get_top_level_dir, read_config
 
 
 class TestStringMethods(unittest.TestCase):
-    def test_upper(self):
-        self.assertEqual("foo".upper(), "FOO")
+    def test_find_issue_marker(self):
+        out = find_issue_marker("SRE-12")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
 
-    def test_isupper(self):
-        self.assertTrue("FOO".isupper())
-        self.assertFalse("Foo".isupper())
+        out = find_issue_marker("SRE-12-find-things")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
 
-    def test_split(self):
-        s = "hello world"
-        self.assertEqual(s.split(), ["hello", "world"])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)
+        out = find_issue_marker("SRE_12")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
 
-    @mock.patch("get_top_level_dir")
-    def test_read_config(self, mock_get_tld):
-        patcher = mock.patch("os.path.exists")
-        mock_thing = patcher.start()
-        mock_thing.return_value = False
-        read_config()
+        out = find_issue_marker("SRE_12-find-things")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("john_SRE_12")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("john_SRE_12-find-things")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("john_SRE12-find-things")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("anna_01_01_SRE-12")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("anna_01_01_SRE12")
+        self.assertTrue(out is not None)
+        self.assertEqual("SRE-12", out)
+
+        out = find_issue_marker("john_test_12")
+        self.assertTrue(out is None)
+
+        out = find_issue_marker("john_test12")
+        self.assertTrue(out is None)
 
 
 if __name__ == "__main__":

@@ -764,6 +764,21 @@ def find_reviewers(b: StackBranch) -> Optional[List[str]]:
     return None
 
 
+def find_issue_marker(name: str) -> Optional[str]:
+    match = re.search(r"(?:^|[_-])([A-Z]{3,}[_-]?\d{2,})($|[_-].*)", name)
+    if match:
+        res = match.group(1)
+        if "_" in res:
+            return res.replace("_", "-")
+        if not "-" in res:
+            newmatch = re.match(r"(...)(\d+)", res)
+            assert newmatch is not None
+            return f"{newmatch.group(1)}-{newmatch.group(2)}"
+        return res
+
+    return None
+
+
 def create_gh_pr(b: StackBranch, prefix: str):
     cout("Creating PR for {}\n", b.name, fg="green")
     parent_prefix = ""
@@ -778,13 +793,13 @@ def create_gh_pr(b: StackBranch, prefix: str):
         "--base",
         f"{parent_prefix}{b.parent.name}",
     ]
-    match = re.match(r"([A-Z]{3,}-\d{1,})($|-.*)", b.name)
     reviewers = find_reviewers(b)
-    if match:
+    issue_id = find_issue_marker(b.name)
+    if issue_id:
         out = run_multiline(
             CmdArgs(["git", "log", "--pretty=oneline", f"{b.parent.name}..{b.name}"]),
         )
-        title = f"[{match.group(1)}] "
+        title = f"[{issue_id}] "
         # Just one line (hence 2 elements with the last one being an empty string when we
         # split on "\"n ?
         # Then use the title of the commit as the title of the PR
