@@ -9,7 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build_wheel:
+    name: Build wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +26,63 @@ jobs:
 
       - run: sha256sum dist/*.whl >dist/$(ls -1 dist/*whl |sed 's@.*/@@').sha256
 
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+
+
+  publish-to-pypi:
+    name: >-
+      Publish Python 🐍  distribution 📦  to PyPI
+    needs:
+    - build_wheel
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/rockset-stacky
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/*.whl
+    - name: Publish distribution 📦  to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  github_release:
+    name: >-
+      Sign the Python 🐍 distribution 📦 with Sigstore
+      and upload them to GitHub Release
+    needs:
+      - publish-to-pypi
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v1.2.3
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
             draft: true
             generate_release_notes: true
             files: |
+              ./dist/*.tar.gz
               ./dist/*.whl
               ./dist/*.whl.sha256
