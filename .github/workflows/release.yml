@@ -24,7 +24,6 @@ jobs:
         with:
           pure_python_wheel: true
 
-      - run: sha256sum dist/*.whl >dist/$(ls -1 dist/*whl |sed 's@.*/@@').sha256
 
       - name: Store the distribution packages
         uses: actions/upload-artifact@v3
@@ -71,6 +70,7 @@ jobs:
         with:
           name: python-package-distributions
           path: dist/
+      - run: sha256sum dist/*.whl >dist/$(ls -1 dist/*whl |sed 's@.*/@@').sha256
       - name: Sign the dists with Sigstore
         uses: sigstore/gh-action-sigstore-python@v1.2.3
         with:
