@@ -2,6 +2,14 @@
 
 
 ## Installation
+You now have the choice on how to do that, we build pre-packaged version of stacky on new releases, they can be found on the [releases](https://github.com/rockset/stacky/releases) page and we also publish a package in `pypi`.
+
+### Pre-packaged
+
+Using `bazel` we provide pre-packaged version, they are self contained and don't require the installation of external modules. Just drop them in a directory that is part of the `$PATH` environment variable make it executable and you are good to go.
+
+There is also a [xar](https://github.com/facebookincubator/xar/) version it should be faster to run but requires to have `xarexec_fuse` installed.
+
 ### Pip
 ```
 pip3 install rockset-stacky
@@ -145,6 +153,27 @@ $> stacky commit -m "updated new file"
 ✓ Not syncing branch change_part_1, already synced with parent master
 - Will sync branch change_part_2 on top of change_part_1
 ```
+
+## Tuning
+
+The behavior of `stacky` allow some tuning. You can tune it by creating a `.stackyconfig`
+the file has to be either at the top of your repository (ie. next to the `.git` folder) or in the `$HOME` folder.
+
+If both files exists the one in the home folder takes precedence.
+The format of that file is following the `ini` format and has the same structure as the `.gitconfig` file.
+
+In the file you have sections and each sections define some parameters.
+
+We currently have the following sections:
+ * UI
+
+List of parameters for each sections:
+
+### UI
+ * skip_confirm, boolean with a default value of `False`, set it to `True` to skip confirmation before doing things like reparenting or removing merged branches.
+ * change_to_main: boolean with a default value of `False`, by default `stacky` will stop doing action is you are not in a valid stack (ie. a branch that was created or adopted by stacky), when set to `True` `stacky` will first change to `main` or `master` *when* the current branch is not a valid stack.
+ * change_to_adopted: boolean with a default value of `False`, when set to `True` `stacky` will change the current branch to the adopted one.
+ * share_ssh_session: boolean with a default value of `False`, when set to `True` `stacky` will create a shared `ssh` session to the `github.com` server. This is useful when you are pushing a stack of diff and you have some kind of 2FA on your ssh key like the ed25519-sk.
 
 ## License
 - [MIT License](https://github.com/rockset/stacky/blob/master/LICENSE.txt)

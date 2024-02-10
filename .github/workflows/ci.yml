@@ -9,6 +9,32 @@ on:
     types: [opened, synchronize, edited, ready_for_review]
 
 jobs:
+  ci_bazel:
+    name: bazel build linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.20.0'
+      - uses: actions/setup-python@v5.0.0
+        with:
+          python-version: '3.10'
+      - run: curl -L -o bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+      - run: chmod a+x bazelisk
+      - run: ln -s bazelisk bazel
+      - run: pip install xar
+      - run: sudo apt-get install squashfs-tools
+      - id: bazel_build
+        run: bazel build //:stacky.xar && bazel build //:stacky --build_python_zip
+      - name: Persist build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stacky_draft
+          path: |
+            bazel-bin/stacky
+            bazel-bin/stacky.xar
+          retention-days: 2
 
   ci:
     name: build and archive
@@ -18,7 +44,7 @@ jobs:
       - uses: actions/setup-python@v5.0.0
         with:
           python-version: '3.10'
-      - id: build
+      - id: python_wheel_build
         uses: OpenAstronomy/build-python-dist@v1
         with:
           pure_python_wheel: true
@@ -29,7 +55,6 @@ jobs:
           path: |
             dist/*.whl
           retention-days: 2
-
 
   linter:
     name: runner / black formatter
@@ -51,4 +76,3 @@ jobs:
           python-version: '3.10'
       - run: pip install asciitree ansicolors simple-term-menu mypy
       - run: mypy ./src/stacky/stacky.py
-
