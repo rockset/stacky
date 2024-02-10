@@ -9,7 +9,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="rockset-stacky",
-    version="1.0.11",
+    version="1.0.12",
     description="""
     stacky is a tool to manage stacks of PRs. This allows developers to easily 
     manage many smaller, more targeted PRs that depend on each other.
