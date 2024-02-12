@@ -108,7 +108,7 @@ jobs:
           path: dist/
       - run: sha256sum dist/*.whl >dist/$(ls -1 dist/*whl |sed 's@.*/@@').sha256
       - name: Sign the dists with Sigstore
-        uses: sigstore/gh-action-sigstore-python@v1.2.3
+        uses: sigstore/gh-action-sigstore-python@v2.1.1
         with:
           inputs: >-
             ./dist/*.tar.gz
