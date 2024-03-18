@@ -1,0 +1,66 @@
+name: Act on main branch push
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build_wheel:
+    name: Build wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - uses: actions/setup-python@v5.0.0
+        with:
+          python-version: '3.10'
+
+      - name: Install pypa/build
+        run: >-
+          python3 -m
+          pip install
+          build
+          --user
+      - name: Build a binary wheel and a source tarball
+        run: python3 -m build
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          retention-days: 2
+
+
+  bazel_build:
+    name: bazel build linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.20.0'
+      - uses: actions/setup-python@v5.0.0
+        with:
+          python-version: '3.10'
+      - run: curl -L -o bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+      - run: chmod a+x bazelisk
+      - run: ln -s bazelisk bazel
+      - run: pip install xar
+      - run: sudo apt-get install squashfs-tools
+      - id: bazel_build
+        run: bazel build //:stacky.xar && bazel build //:stacky --build_python_zip
+      - name: Persist build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stacky_bazel
+          path: |
+            bazel-bin/stacky.xar
+            bazel-bin/stacky
+          retention-days: 2
