@@ -113,7 +113,14 @@ class StackyConfig:
             self.share_ssh_session = bool(rawconfig.get("UI", "share_ssh_session", fallback=self.share_ssh_session))
 
 
-CONFIG: StackyConfig
+CONFIG: Optional[StackyConfig] = None
+
+
+def get_config() -> StackyConfig:
+    global CONFIG
+    if CONFIG is None:
+        CONFIG = read_config()
+    return CONFIG
 
 
 def read_config() -> StackyConfig:
@@ -163,7 +170,7 @@ class ExitException(BaseException):
 
 
 def stop_muxed_ssh(remote: str = "origin"):
-    if CONFIG.share_ssh_session:
+    if get_config().share_ssh_session:
         hostish = get_remote_type(remote)
         if hostish is not None:
             cmd = gen_ssh_mux_cmd()
@@ -726,7 +733,7 @@ def prompt(message: str, default_value: Optional[str]) -> str:
 
 
 def confirm(msg: str = "Proceed?"):
-    if CONFIG.skip_confirm:
+    if get_config().skip_confirm:
         return
     if not os.isatty(0):
         die("Standard input is not a terminal, use --force option to force action")
@@ -1223,7 +1230,7 @@ def gen_ssh_mux_cmd() -> List[str]:
 
 
 def start_muxed_ssh(remote: str = "origin"):
-    if not CONFIG.share_ssh_session:
+    if not get_config().share_ssh_session:
         return
     hostish = get_remote_type(remote)
     if hostish is not None:
@@ -1406,7 +1413,7 @@ def cmd_adopt(stack: StackBranch, args):
         # TODO remove that, the initialisation code is already dealing with that in fact
         main_branch = get_real_stack_bottom()
 
-        if CONFIG.change_to_main and main_branch is not None:
+        if get_config().change_to_main and main_branch is not None:
             run(CmdArgs(["git", "checkout", main_branch]))
             CURRENT_BRANCH = main_branch
         else:
@@ -1418,7 +1425,7 @@ def cmd_adopt(stack: StackBranch, args):
     parent_commit = get_merge_base(CURRENT_BRANCH, branch)
     set_parent(branch, CURRENT_BRANCH, set_origin=True)
     set_parent_commit(branch, parent_commit)
-    if CONFIG.change_to_adopted:
+    if get_config().change_to_adopted:
         run(CmdArgs(["git", "checkout", branch]))
 
 
@@ -1664,9 +1671,6 @@ def main():
         checkout_parser = subparsers.add_parser("sco", help="Checkout a branch in this stack")
         checkout_parser.set_defaults(func=cmd_stack_checkout)
 
-        global CONFIG
-        CONFIG = read_config()
-
         args = parser.parse_args()
         logging.basicConfig(format=_LOGGING_FORMAT, level=LOGLEVELS[args.log_level], force=True)
 
@@ -1707,7 +1711,7 @@ def main():
             if CURRENT_BRANCH not in stack.stack:
                 main_branch = get_real_stack_bottom()
 
-                if CONFIG.change_to_main and main_branch is not None:
+                if get_config().change_to_main and main_branch is not None:
                     run(["git", "checkout", main_branch])
                     CURRENT_BRANCH = main_branch
                 else:
