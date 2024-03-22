@@ -783,7 +783,9 @@ def create_gh_pr(b: StackBranch, prefix: str):
     cout("Creating PR for {}\n", b.name, fg="green")
     parent_prefix = ""
     if b.parent.name not in STACK_BOTTOMS:
-        parent_prefix = prefix
+        # you are pushing a sub stack, there is no way we can make it work
+        # accross repo so we will push within your own clone
+        prefix = ""
     cmd = [
         "gh",
         "pr",
