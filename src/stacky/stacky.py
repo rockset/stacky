@@ -85,6 +85,7 @@ COLOR_STDERR: bool = os.isatty(2)
 IS_TERMINAL: bool = os.isatty(1) and os.isatty(2)
 CURRENT_BRANCH: BranchName
 STACK_BOTTOMS: set[BranchName] = set([BranchName("master"), BranchName("main")])
+FROZEN_STACK_BOTTOMS: FrozenSet[BranchName] = frozenset([BranchName("master"), BranchName("main")])
 STATE_FILE = os.path.expanduser("~/.stacky.state")
 TMP_STATE_FILE = STATE_FILE + ".tmp"
 
@@ -498,10 +499,17 @@ def load_stack_for_given_branch(
 
     return top, [b.branch for b in branches]
 
+def get_all_stack_bottoms() -> List[BranchName]:
+    branches = run_multiline(CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stacky-bottom-branch"]))
+    return [BranchName(b.split('/', 1)[1]) for b in branches.split("\n") if b]
+
+def get_all_stack_parent_refs() -> List[BranchName]:
+    branches = run_multiline(CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stack-parent"]))
+    return [BranchName(b.split('/', 1)[1]) for b in branches.split("\n") if b]
+
 def load_all_stack_bottoms():
     branches = run_multiline(CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stacky-bottom-branch"]))
-    STACK_BOTTOMS.update([BranchName(b.split('/')[1]) for b in branches.split("\n") if b])
-    print(STACK_BOTTOMS)
+    STACK_BOTTOMS.update(get_all_stack_bottoms())
 
 def load_all_stacks(stack: StackBranchSet) -> Optional[StackBranch]:
     """Given a stack return the top of it, aka the bottom of the tree"""
@@ -1216,10 +1224,7 @@ def set_parent(branch: BranchName, target: BranchName, *, set_origin: bool = Fal
 def cmd_upstack_onto(stack: StackBranchSet, args):
     b = stack.stack[CURRENT_BRANCH]
     if not b.parent:
-        if len(stack.bottoms) == 1:
-            die("May not restack {} when it's the only stack bottom", b.name)
-        else:
-            stack.bottoms.remove(b)
+        die("may not upstack a stack bottom, use stacky adopt")
     target = stack.stack[args.target]
     upstack = get_current_upstack_as_forest(stack)
     for ub in forest_depth_first(upstack):
@@ -1377,6 +1382,23 @@ def delete_branches(stack: StackBranchSet, deletes: List[StackBranch]):
             CURRENT_BRANCH = new_branch.name
         run(CmdArgs(["git", "branch", "-D", b.name]))
 
+def cleanup_unused_refs(stack: StackBranchSet):
+    # Clean up stacky bottom branch refs
+    info("Cleaning up unused refs")
+    stack_bottoms = get_all_stack_bottoms()
+    for bottom in stack_bottoms:
+        if not bottom in stack.stack:
+            ref = "refs/stacky-bottom-branch/{}".format(bottom)
+            info("Deleting ref {}".format(ref))
+            run(CmdArgs(["git", "update-ref", "-d", ref]))
+    
+    stack_parent_refs = get_all_stack_parent_refs()
+    for br in stack_parent_refs:
+        if not br in stack.stack:
+            ref = "refs/stack-parent/{}".format(br)
+            old_value = run(CmdArgs(["git", "show-ref", ref]))
+            info("Deleting ref {}".format(old_value))
+            run(CmdArgs(["git", "update-ref", "-d", ref]))
 
 def cmd_update(stack: StackBranchSet, args):
     remote = "origin"
@@ -1415,6 +1437,8 @@ def cmd_update(stack: StackBranchSet, args):
 
     delete_branches(stack, deletes)
     stop_muxed_ssh(remote)
+
+    cleanup_unused_refs(stack)
 
 
 def cmd_import(stack: StackBranchSet, args):
@@ -1490,6 +1514,10 @@ def cmd_adopt(stack: StackBranch, args):
     """
     branch = args.name
     global CURRENT_BRANCH
+
+    if branch == CURRENT_BRANCH:
+        die("A branch cannot adopt itself")
+
     if CURRENT_BRANCH not in STACK_BOTTOMS:
         # TODO remove that, the initialisation code is already dealing with that in fact
         main_branch = get_real_stack_bottom()
@@ -1503,6 +1531,12 @@ def cmd_adopt(stack: StackBranch, args):
                 CURRENT_BRANCH,
                 ", ".join(sorted(STACK_BOTTOMS)),
             )
+    if branch in STACK_BOTTOMS:
+        if branch in FROZEN_STACK_BOTTOMS:
+            die("Cannot adopt frozen stack bottoms {}".format(FROZEN_STACK_BOTTOMS))
+        # Remove the ref that this is a stack bottom 
+        run(CmdArgs(["git", "update-ref", "-d", "refs/stacky-bottom-branch/{}".format(b.name)]))
+
     parent_commit = get_merge_base(CURRENT_BRANCH, branch)
     set_parent(branch, CURRENT_BRANCH, set_origin=True)
     set_parent_commit(branch, parent_commit)
