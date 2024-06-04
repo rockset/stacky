@@ -15,6 +15,8 @@
 # to the commit at the tip of the parent branch, as `git update-ref
 # refs/stack-parent/<name>`.
 #
+# For all bottom branches we maintain a ref, labeling it a base_branch refs/stacky-bottom-branch/branch-name
+#
 # When rebasing or restacking, we proceed in depth-first order (from "master"
 # onwards). After updating a parent branch P, given a child branch C,
 # we rebase everything from C's PC until C's tip onto P.
@@ -82,7 +84,7 @@ COLOR_STDOUT: bool = os.isatty(1)
 COLOR_STDERR: bool = os.isatty(2)
 IS_TERMINAL: bool = os.isatty(1) and os.isatty(2)
 CURRENT_BRANCH: BranchName
-STACK_BOTTOMS: FrozenSet[BranchName] = frozenset([BranchName("master"), BranchName("main")])
+STACK_BOTTOMS: set[BranchName] = set([BranchName("master"), BranchName("main")])
 STATE_FILE = os.path.expanduser("~/.stacky.state")
 TMP_STATE_FILE = STATE_FILE + ".tmp"
 
@@ -267,6 +269,8 @@ def get_stack_parent_branch(branch: BranchName) -> Optional[BranchName]:  # type
     p = run(CmdArgs(["git", "config", "branch.{}.merge".format(branch)]), check=False)
     if p is not None:
         p = remove_prefix(p, "refs/heads/")
+        if BranchName(p) == branch:
+            return None
         return BranchName(p)
 
 
@@ -402,6 +406,7 @@ class StackBranchSet:
 
     def add(self, name: BranchName, **kwargs) -> StackBranch:
         if name in self.stack:
+            print("Adding existing stack branch: {}", name)
             s = self.stack[name]
             assert s.name == name
             for k, v in kwargs.items():
@@ -414,12 +419,41 @@ class StackBranchSet:
                         v,
                     )
         else:
+            print("Adding new stack branch: {}", name)
             s = StackBranch(name, **kwargs)
             self.stack[name] = s
             if s.parent is None:
                 self.bottoms.add(s)
             self.tops.add(s)
         return s
+
+    def addStackBranch(self, s: StackBranch):
+        if s.name in self.stack:
+            # do nothing
+            return
+        else:
+            self.stack[s.name] = s
+            if s.parent is None:
+                print("Adding {} as bottom", s.name)
+                self.bottoms.add(s)
+            if len(s.children) == 0:
+                self.tops.add(s)
+        
+        return s
+
+    def remove(self, name: BranchName) -> StackBranch:
+        if name in self.stack:
+            print("removing branch: {}", name)
+            s = self.stack[name]
+            assert s.name == name
+            del self.stack[name]
+            if s in self.tops:
+                self.tops.remove(s)
+            if s in self.bottoms:
+                self.bottoms.remove(s)
+            return s
+
+        return None
 
     def __repr__(self) -> str:
         out = f"StackBranchSet: {self.stack}"
@@ -449,6 +483,7 @@ def load_stack_for_given_branch(
             return None, [b.branch for b in branches]
         branch = parent
 
+    print("loaded bottom branch: {}", branch)
     branches.append(BranchNCommit(branch, None))
     top = None
     for b in reversed(branches):
@@ -463,10 +498,16 @@ def load_stack_for_given_branch(
 
     return top, [b.branch for b in branches]
 
+def load_all_stack_bottoms():
+    branches = run_multiline(CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stacky-bottom-branch"]))
+    STACK_BOTTOMS.update([BranchName(b.split('/')[1]) for b in branches.split("\n") if b])
+    print(STACK_BOTTOMS)
 
 def load_all_stacks(stack: StackBranchSet) -> Optional[StackBranch]:
     """Given a stack return the top of it, aka the bottom of the tree"""
+    load_all_stack_bottoms()
     all_branches = set(get_all_branches())
+    print(all_branches)
     current_branch_top = None
     while all_branches:
         b = all_branches.pop()
@@ -641,6 +682,11 @@ def load_pr_info_for_forest(forest: BranchesTreeForest):
 
 def cmd_info(stack: StackBranchSet, args):
     forest = get_all_stacks_as_forest(stack)
+    for bottom in stack.bottoms:
+        print(bottom.name)
+        print()
+    # for tree in forest:
+    #     print(tree)
     if args.pr:
         load_pr_info_for_forest(forest)
     print_forest(forest)
@@ -1143,22 +1189,37 @@ def set_parent(branch: BranchName, target: BranchName, *, set_origin: bool = Fal
     if set_origin:
         run(CmdArgs(["git", "config", "branch.{}.remote".format(branch), "."]))
 
+    ## If target is none this becomes a new stack bottom
     run(
         CmdArgs(
             [
                 "git",
                 "config",
                 "branch.{}.merge".format(branch),
-                "refs/heads/{}".format(target),
+                "refs/heads/{}".format(target if target is not None else branch),
             ]
         )
     )
 
+    if target is None:
+        run(
+            CmdArgs(
+                [
+                    "git",
+                    "update-ref",
+                    "-d",
+                    "refs/stack-parent/{}".format(branch),
+                ]
+            )
+        )
 
 def cmd_upstack_onto(stack: StackBranchSet, args):
     b = stack.stack[CURRENT_BRANCH]
     if not b.parent:
-        die("May not restack {}", b.name)
+        if len(stack.bottoms) == 1:
+            die("May not restack {} when it's the only stack bottom", b.name)
+        else:
+            stack.bottoms.remove(b)
     target = stack.stack[args.target]
     upstack = get_current_upstack_as_forest(stack)
     for ub in forest_depth_first(upstack):
@@ -1169,6 +1230,24 @@ def cmd_upstack_onto(stack: StackBranchSet, args):
 
     do_sync(upstack)
 
+def cmd_upstack_as_base(stack: StackBranchSet):
+    b = stack.stack[CURRENT_BRANCH]
+    if not b.parent:
+        die("Branch {} is already a stack bottom", b.name)
+
+    print("Upstack as base with: {}", b.name)
+    b.parent = None 
+    stack.remove(b.name)
+    stack.addStackBranch(b)
+    set_parent(b.name, None)
+
+    run(CmdArgs(["git", "update-ref", "refs/stacky-bottom-branch/{}".format(b.name), b.commit, ""]))
+
+def cmd_upstack_as(stack: StackBranchSet, args):
+    if(args.target == "bottom"):
+        cmd_upstack_as_base(stack)
+    else: 
+        die("Invalid target {}, acceptable targets are [base]", args.target)
 
 def cmd_downstack_info(stack, args):
     forest = get_current_downstack_as_forest(stack)
@@ -1609,6 +1688,10 @@ def main():
         upstack_onto_parser = upstack_subparsers.add_parser("onto", aliases=["restack"], help="Restack")
         upstack_onto_parser.add_argument("target", help="New parent")
         upstack_onto_parser.set_defaults(func=cmd_upstack_onto)
+
+        upstack_as_parser = upstack_subparsers.add_parser("as", help="Upstack branch this as a new stack bottom")
+        upstack_as_parser.add_argument("target", help="bottom, restack this branch as a new stack bottom")
+        upstack_as_parser.set_defaults(func=cmd_upstack_as)
 
         # downstack
         downstack_parser = subparsers.add_parser(
