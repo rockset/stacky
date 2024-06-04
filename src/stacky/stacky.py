@@ -436,7 +436,7 @@ class StackBranchSet:
 
         return s
 
-    def remove(self, name: BranchName) -> StackBranch:
+    def remove(self, name: BranchName) -> Optional[StackBranch]:
         if name in self.stack:
             s = self.stack[name]
             assert s.name == name
@@ -492,16 +492,28 @@ def load_stack_for_given_branch(
     return top, [b.branch for b in branches]
 
 
+def get_branch_name_from_short_ref(ref: str) -> BranchName:
+    parts = ref.split("/", 1)
+    if len(parts) != 2:
+        die("invalid ref: {}".format(ref))
+
+    return BranchName(parts[1])
+
+
 def get_all_stack_bottoms() -> List[BranchName]:
     branches = run_multiline(
         CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stacky-bottom-branch"])
     )
-    return [BranchName(b.split("/", 1)[1]) for b in branches.split("\n") if b]
+    if branches:
+        return [get_branch_name_from_short_ref(b) for b in branches.split("\n") if b]
+    return []
 
 
 def get_all_stack_parent_refs() -> List[BranchName]:
     branches = run_multiline(CmdArgs(["git", "for-each-ref", "--format", "%(refname:short)", "refs/stack-parent"]))
-    return [BranchName(b.split("/", 1)[1]) for b in branches.split("\n") if b]
+    if branches:
+        return [get_branch_name_from_short_ref(b) for b in branches.split("\n") if b]
+    return []
 
 
 def load_all_stack_bottoms():
@@ -1187,7 +1199,7 @@ def cmd_upstack_sync(stack: StackBranchSet, args):
     do_sync(get_current_upstack_as_forest(stack))
 
 
-def set_parent(branch: BranchName, target: BranchName, *, set_origin: bool = False):
+def set_parent(branch: BranchName, target: Optional[BranchName], *, set_origin: bool = False):
     if set_origin:
         run(CmdArgs(["git", "config", "branch.{}.remote".format(branch), "."]))
 
@@ -1236,7 +1248,7 @@ def cmd_upstack_as_base(stack: StackBranchSet):
     if not b.parent:
         die("Branch {} is already a stack bottom", b.name)
 
-    b.parent = None
+    b.parent = None  # type: ignore
     stack.remove(b.name)
     stack.addStackBranch(b)
     set_parent(b.name, None)
