@@ -945,7 +945,7 @@ def do_push(
                     [
                         "git",
                         "push",
-                        "-f",
+                        #"-f",
                         b.remote,
                         "{}:{}".format(b.name, b.remote_branch),
                     ]
@@ -1053,16 +1053,29 @@ def inner_do_sync(syncs: List[StackBranch], sync_names: List[BranchName]):
                 fg="green",
             )
         else:
-            cout("Rebasing {} on top of {}\n", b.name, b.parent.name, fg="green")
+            # cout("Rebasing {} on top of {}\n", b.name, b.parent.name, fg="green")
+            # r = run(
+            #     CmdArgs(["git", "rebase", "--onto", b.parent.name, b.parent_commit, b.name]),
+            #     out=True,
+            #     check=False,
+            # )
+            # if r is None:
+            #     print()
+            #     die(
+            #         "Automatic rebase failed. Please complete the rebase (fix conflicts; `git rebase --continue`), then run `stacky continue`"
+            #     )
+            # b.commit = get_commit(b.name)
+            cout("Merging {} on top of {}\n", b.name, b.parent.name, fg="green")
+            run(CmdArgs(["git", "checkout", str(b.name)]))
             r = run(
-                CmdArgs(["git", "rebase", "--onto", b.parent.name, b.parent_commit, b.name]),
+                CmdArgs(["git", "merge", b.parent.name]),
                 out=True,
                 check=False,
             )
             if r is None:
                 print()
                 die(
-                    "Automatic rebase failed. Please complete the rebase (fix conflicts; `git rebase --continue`), then run `stacky continue`"
+                    "Automatic rebase failed. Please complete the rebase (fix conflicts; `git merge --continue`), then run `stacky continue`"
                 )
             b.commit = get_commit(b.name)
         set_parent_commit(b.name, b.parent.commit, b.parent_commit)
