@@ -176,4 +176,5 @@ List of parameters for each sections:
  * share_ssh_session: boolean with a default value of `False`, when set to `True` `stacky` will create a shared `ssh` session to the `github.com` server. This is useful when you are pushing a stack of diff and you have some kind of 2FA on your ssh key like the ed25519-sk.
 
 ## License
+
 - [MIT License](https://github.com/rockset/stacky/blob/master/LICENSE.txt)
