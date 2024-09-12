@@ -858,7 +858,6 @@ def do_push(
     pr: bool = False,
     remote_name: str = "origin",
 ):
-    start_muxed_ssh(remote_name)
     if pr:
         load_pr_info_for_forest(forest)
     print_forest(forest)
@@ -937,8 +936,15 @@ def do_push(
         prefix = f'{val.split(":")[1].split("/")[0]}:'
     else:
         prefix = ""
+    muxed = False
     for b, push, pr_action in actions:
         if push:
+            if not muxed:
+                start_muxed_ssh(remote_name)
+                muxed = True
+            # Try to run pre-push before muxing ...
+            # To do so we need to pickup the current commit of the branch, the branch name, the
+            # parent branch and it's parent commit and call .git/hooks/pre-push
             cout("Pushing {}\n", b.name, fg="green")
             run(
                 CmdArgs(
