@@ -271,10 +271,14 @@ def get_real_stack_bottom() -> Optional[BranchName]:  # type: ignore [return]
         return candiates.pop()
 
 
+def get_stack_parent_branch_name(branch: BranchName) -> str:
+    return "branch.{}.merge".format(branch)
+
+
 def get_stack_parent_branch(branch: BranchName) -> Optional[BranchName]:  # type: ignore [return]
     if branch in STACK_BOTTOMS:
         return None
-    p = run(CmdArgs(["git", "config", "branch.{}.merge".format(branch)]), check=False)
+    p = run(CmdArgs(["git", "config", get_stack_parent_branch_name(branch)]), check=False)
     if p is not None:
         p = remove_prefix(p, "refs/heads/")
         if BranchName(p) == branch:
@@ -482,6 +486,12 @@ def load_stack_for_given_branch(
             if check:
                 die("Branch is not in a stack: {}", branch)
             return None, [b.branch for b in branches]
+        if branch == parent:
+            error("Branch {} seems to be its own parent, this is wrong", branch)
+            error(
+                f"To fix it update the config for {get_stack_parent_branch_name(branch)} by running git config {get_stack_parent_branch_name(branch)} ref/heads/<branch>"
+            )
+            die("Refusing to continue")
         branch = parent
 
     branches.append(BranchNCommit(branch, None))
@@ -1241,7 +1251,7 @@ def set_parent(branch: BranchName, target: Optional[BranchName], *, set_origin: 
             [
                 "git",
                 "config",
-                "branch.{}.merge".format(branch),
+                get_stack_parent_branch_name(branch),
                 "refs/heads/{}".format(target if target is not None else branch),
             ]
         )
