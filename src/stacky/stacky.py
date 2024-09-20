@@ -19,6 +19,7 @@
 # onwards). After updating a parent branch P, given a child branch C,
 # we rebase everything from C's PC until C's tip onto P.
 #
+#
 # That's all there is to it.
 
 import configparser
@@ -102,6 +103,8 @@ class StackyConfig:
     change_to_main: bool = False
     change_to_adopted: bool = False
     share_ssh_session: bool = False
+    use_merge: bool = False
+    use_force_push: bool = True
 
     def read_one_config(self, config_path: str):
         rawconfig = configparser.ConfigParser()
@@ -111,6 +114,10 @@ class StackyConfig:
             self.change_to_main = bool(rawconfig.get("UI", "change_to_main", fallback=self.change_to_main))
             self.change_to_adopted = bool(rawconfig.get("UI", "change_to_adopted", fallback=self.change_to_adopted))
             self.share_ssh_session = bool(rawconfig.get("UI", "share_ssh_session", fallback=self.share_ssh_session))
+
+        if rawconfig.has_section("GIT"):
+            self.use_merge = bool(rawconfig.get("GIT", "use_merge", fallback=self.use_merge))
+            self.use_merge = bool(rawconfig.get("GIT", "use_force_push", fallback=self.use_force_push))
 
 
 CONFIG: Optional[StackyConfig] = None
@@ -951,7 +958,7 @@ def do_push(
                     [
                         "git",
                         "push",
-                        "-f",
+                        "-f" if get_config().use_force_push else "",
                         b.remote,
                         "{}:{}".format(b.name, b.remote_branch),
                     ]
@@ -1041,6 +1048,7 @@ def get_commits_between(a: Commit, b: Commit):
 
 def inner_do_sync(syncs: List[StackBranch], sync_names: List[BranchName]):
     print()
+    sync_type = "merge" if get_config().use_merge else "rebase"
     while syncs:
         with open(TMP_STATE_FILE, "w") as f:
             json.dump({"branch": CURRENT_BRANCH, "sync": sync_names}, f)
@@ -1053,22 +1061,36 @@ def inner_do_sync(syncs: List[StackBranch], sync_names: List[BranchName]):
             continue
         if b.parent.commit in get_commits_between(b.parent_commit, b.commit):
             cout(
-                "Recording complete rebase of {} on top of {}\n",
+                "Recording complete {} of {} on top of {}\n",
+                sync_type,
                 b.name,
                 b.parent.name,
                 fg="green",
             )
         else:
-            cout("Rebasing {} on top of {}\n", b.name, b.parent.name, fg="green")
-            r = run(
-                CmdArgs(["git", "rebase", "--onto", b.parent.name, b.parent_commit, b.name]),
-                out=True,
-                check=False,
-            )
+            r = None
+            if get_config().use_merge:
+                cout("Merging {} into {}\n", b.parent.name, b.name, fg="green")
+                run(CmdArgs(["git", "checkout", str(b.name)]))
+                r = run(
+                    CmdArgs(["git", "merge", b.parent.name]),
+                    out=True,
+                    check=False,
+                )
+            else:
+                cout("Rebasing {} on top of {}\n", b.name, b.parent.name, fg="green")
+                r = run(
+                    CmdArgs(["git", "rebase", "--onto", b.parent.name, b.parent_commit, b.name]),
+                    out=True,
+                    check=False,
+                )
+
             if r is None:
                 print()
                 die(
-                    "Automatic rebase failed. Please complete the rebase (fix conflicts; `git rebase --continue`), then run `stacky continue`"
+                    "Automatic {0} failed. Please complete the {0} (fix conflicts; `git {0} --continue`), then run `stacky continue`".format(
+                        sync_type
+                    )
                 )
             b.commit = get_commit(b.name)
         set_parent_commit(b.name, b.parent.commit, b.parent_commit)
@@ -1090,6 +1112,10 @@ def do_commit(stack: StackBranchSet, *, message=None, amend=False, allow_empty=F
             b.name,
             b.parent.name,
         )
+
+    if amend and (get_config().use_merge or not get_config().use_force_push):
+        die("Amending is not allowed if using git merge or if force pushing is disallowed")
+
     if amend and b.commit == b.parent.commit:
         die("Branch {} has no commits, may not amend", b.name)
 
