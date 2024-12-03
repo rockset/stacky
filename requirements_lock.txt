@@ -11,7 +11,7 @@ ansicolors==1.1.8 \
 asciitree==0.3.3 \
     --hash=sha256:4aa4b9b649f85e3fcb343363d97564aa1fb62e249677f2e18a96765145cc0f6e
     # via -r requirements.in
-simple-term-menu==1.6.4 \
-    --hash=sha256:5edc5e239060a780d089b6a079f113aeda6dbf91740327c2c70c541ea3a04b8d \
-    --hash=sha256:be9c5dbd8df12a404b14cd8e95d6fc02d58c60e2555f65ddde41777c487fb3b9
+simple-term-menu==1.6.6 \
+    --hash=sha256:9813d36f5749d62d200a5599b1ec88469c71378312adc084c00c00bfbb383893 \
+    --hash=sha256:c2a869efa7a9f7e4a9c25858b42ca6974034951c137d5e281f5339b06ed8c9c2
     # via -r requirements.in
