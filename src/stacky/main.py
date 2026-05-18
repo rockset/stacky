@@ -37,6 +37,7 @@ from stacky.commands.inbox import cmd_inbox, cmd_prs
 from stacky.commands.fold import (
     cmd_fold, inner_do_fold, finish_merge_fold_operation
 )
+from stacky.commands.recreate import cmd_recreate
 
 
 def main():
@@ -115,6 +116,8 @@ def main():
         current_branch = get_current_branch_name()
         if args.command == "continue":
             _handle_continue(stack, current_branch)
+        elif args.command == "recreate":
+            args.func(stack, args)
         else:
             if current_branch not in stack.stack:
                 main_branch = get_real_stack_bottom()
@@ -336,3 +339,12 @@ def _setup_other_commands(subparsers):
     fold_parser = subparsers.add_parser("fold", help="Fold current branch into parent branch and delete current branch")
     fold_parser.add_argument("--allow-empty", action="store_true", help="Allow empty commits during cherry-pick")
     fold_parser.set_defaults(func=cmd_fold)
+
+    # recreate
+    recreate_parser = subparsers.add_parser(
+        "recreate",
+        help="Rebuild a stack from `stacky info` output (read from stdin or --file)",
+    )
+    recreate_parser.add_argument("--file", help="Read stack info from a file instead of stdin")
+    recreate_parser.add_argument("--force", "-f", action="store_true", help="Bypass confirmation")
+    recreate_parser.set_defaults(func=cmd_recreate)
