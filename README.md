@@ -12,7 +12,8 @@ There is also a [xar](https://github.com/facebookincubator/xar/) version it shou
 
 ### Pip
 ```
-pip3 install rockset-stacky
+1. Clone this repository
+2. From this repository root run `pip install -e .`
 ```
 
 ### Manual
@@ -20,12 +21,47 @@ pip3 install rockset-stacky
 1. asciitree
 2. ansicolors
 3. simple-term-menu
+4. argcomplete (for tab completion)
 ```
-pip3 install asciitree ansicolors simple-term-menu
+pip3 install asciitree ansicolors simple-term-menu argcomplete
 ```
 
 After which `stacky` can be directly run with `./src/stacky/stacky.py`. We would recommend symlinking `stacky.py` into your path so you can use it anywhere
 
+## Tab Completion
+
+Stacky supports tab completion for branch names in bash and zsh. To enable it:
+
+### One-time setup
+```bash
+# Install argcomplete
+pip3 install argcomplete
+
+# Enable global completion (recommended)
+activate-global-python-argcomplete
+```
+
+### Per-session setup (alternative)
+If you prefer not to use global completion, you can enable it per session:
+```bash
+# For bash/zsh
+eval "$(register-python-argcomplete stacky)"
+```
+
+### Permanent setup (alternative)
+Add the completion to your shell config:
+```bash
+# For bash - add to ~/.bashrc
+eval "$(register-python-argcomplete stacky)"
+
+# For zsh - add to ~/.zshrc  
+eval "$(register-python-argcomplete stacky)"
+```
+
+After setup, you can use tab completion with commands like:
+- `stacky checkout <TAB>` - completes branch names
+- `stacky adopt <TAB>` - completes branch names
+- `stacky branch checkout <TAB>` - completes branch names
 
 ## Accessing Github
 Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli commands to work and be properly configured. For instructions on installing the github cli `gh` please read their [documentation](https://cli.github.com/manual/).
@@ -33,14 +69,18 @@ Stacky doesn't use any git or Github APIs. It expects `git` and `gh` cli command
 ## Usage
 `stacky` stores all information locally, within your git repository
 Syntax is as follows:
-- `stacky info`: show all stacks , add `-pr` if you want to see GitHub PR numbers (slows things down a bit)
+- `stacky info`: show all stacks , add `-pr` if you want to see GitHub PR numbers (slows things down a bit)
+- `stacky inbox [--compact]`: show all active GitHub pull requests for the current user, organized by status (waiting on you, waiting on review, approved, and PRs awaiting your review). Use `--compact` or `-c` for a condensed one-line-per-PR view with clickable PR numbers.
+- `stacky prs`: interactive PR management tool that allows you to select and edit PR descriptions. Shows a simple menu of all your open PRs and PRs awaiting your review, then opens your preferred editor (from `$EDITOR` environment variable) to modify the selected PR's description.
 - `stacky branch`: per branch commands (shortcut: `stacky b`)
     - `stacky branch up` (`stacky b u`): move down the stack (towards `master`)
-    - `stacky branch down` (`stacky b d`): move down the stack (towards `master`)
+    - `stacky branch down` (`stacky b d`): move down the stack (towards `master`)
     - `stacky branch new <name>`: create a new branch on top of the current one
-- `stacky commit [-m <message>] [--amend] [--allow-empty]`: wrapper around `git commit` that syncs everything upstack
+    - `stacky branch commit <name> [-m <message>] [-a]`: create a new branch and commit changes in one command
+- `stacky commit [-m <message>] [--amend] [--allow-empty] [-a]`: wrapper around `git commit` that syncs everything upstack
     - `stacky amend`: will amend currently tracked changes to top commit
-- Based on the first argument (`stack` vs `upstack` vs `downstack`), the following commands operate on the entire current stack, everything upstack from the current PR (inclusive), or everything downstack from the current PR:
+- `stacky fold [--allow-empty]`: fold current branch into its parent branch and delete the current branch. Any children of the current branch become children of the parent branch. Uses cherry-pick by default, or merge if `use_merge` is enabled in config. Use `--allow-empty` to allow empty commits during cherry-pick.
+- Based on the first argument (`stack` vs `upstack` vs `downstack`), the following commands operate on the entire current stack, everything upstack from the current PR (inclusive), or everything downstack from the current PR:
     - `stacky stack info [--pr]`
     - `stacky stack sync`: sync (rebase) branches in the stack on top of their parents
     - `stacky stack push [--no-pr]`: push to origin, optionally not creating PRs if they don’t exist
@@ -56,12 +96,12 @@ The indicators (`*`, `~`, `!`) mean:
 ```
 $ stacky --help
 usage: stacky [-h] [--color {always,auto,never}]
-              {continue,info,commit,amend,branch,b,stack,s,upstack,us,downstack,ds,update,import,adopt,land,push,sync,checkout,co,sco} ...
+              {continue,info,commit,amend,branch,b,stack,s,upstack,us,downstack,ds,update,import,adopt,land,push,sync,checkout,co,sco,inbox,prs,fold} ...
 
 Handle git stacks
 
 positional arguments:
-  {continue,info,commit,amend,branch,b,stack,s,upstack,us,downstack,ds,update,import,adopt,land,push,sync,checkout,co,sco}
+  {continue,info,commit,amend,branch,b,stack,s,upstack,us,downstack,ds,update,import,adopt,land,push,sync,checkout,co,sco,inbox,prs,fold}
     continue            Continue previously interrupted command
     info                Stack info
     commit              Commit
@@ -71,12 +111,16 @@ positional arguments:
     upstack (us)        Operations on the current upstack
     downstack (ds)      Operations on the current downstack
     update              Update repo
+    import              Import Graphite stack
     adopt               Adopt one branch
     land                Land bottom-most PR on current stack
     push                Alias for downstack push
     sync                Alias for stack sync
     checkout (co)       Checkout a branch
     sco                 Checkout a branch in this stack
+    inbox               List all active GitHub pull requests for the current user
+    prs                 Interactive PR management - select and edit PR descriptions
+    fold                Fold current branch into parent branch and delete current branch
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -166,6 +210,7 @@ In the file you have sections and each sections define some parameters.
 
 We currently have the following sections:
  * UI
+ * GIT
 
 List of parameters for each sections:
 
@@ -174,6 +219,44 @@ List of parameters for each sections:
  * change_to_main: boolean with a default value of `False`, by default `stacky` will stop doing action is you are not in a valid stack (ie. a branch that was created or adopted by stacky), when set to `True` `stacky` will first change to `main` or `master` *when* the current branch is not a valid stack.
  * change_to_adopted: boolean with a default value of `False`, when set to `True` `stacky` will change the current branch to the adopted one.
  * share_ssh_session: boolean with a default value of `False`, when set to `True` `stacky` will create a shared `ssh` session to the `github.com` server. This is useful when you are pushing a stack of diff and you have some kind of 2FA on your ssh key like the ed25519-sk.
+ * compact_pr_display: boolean with a default value of `False`, when set to `True` `stacky info --pr` will show a compact format displaying only the PR number and status emoji (✅ approved, ❌ changes requested, 🔄 waiting for review, 🚧 draft) without the PR title. Both compact and full formats include clickable links to the PRs.
+ * enable_stack_comment: boolean with a default value of `True`, when set to `False` `stacky` will not post stack comments to GitHub PRs showing the entire stack structure. Disable this if you don't want automated stack comments in your PR descriptions.
+
+### GIT
+ * use_merge: boolean with a default value of `False`, when set to `True` `stacky` will use `git merge` instead of `git rebase` for sync operations and `stacky fold` will merge the child branch into the parent instead of cherry-picking individual commits.
+ * use_force_push: boolean with a default value of `True`, controls whether `stacky` can use force push when pushing branches.
+
+### Example Configuration
+
+Here's a complete example of a `.stackyconfig` file with all available options:
+
+```ini
+[UI]
+# Skip confirmation prompts (useful for automation)
+skip_confirm = False
+
+# Automatically change to main/master when not in a valid stack  
+change_to_main = False
+
+# Change to the adopted branch after running 'stacky adopt'
+change_to_adopted = False
+
+# Create shared SSH session for multiple operations (helpful with 2FA)
+share_ssh_session = False
+
+# Show compact format for 'stacky info --pr' (just number and emoji)
+compact_pr_display = False
+
+# Enable posting stack comments to GitHub PRs
+enable_stack_comment = True
+
+[GIT]
+# Use git merge instead of rebase for sync operations
+use_merge = False
+
+# Allow force push when pushing branches
+use_force_push = True
+```
 
 ## License
 

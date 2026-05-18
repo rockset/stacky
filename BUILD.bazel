@@ -16,6 +16,7 @@ py_binary(
         requirement("ansicolors"),
         requirement("simple-term-menu"),
         requirement("asciitree"),
+        requirement("argcomplete"),
     ]
 )
 

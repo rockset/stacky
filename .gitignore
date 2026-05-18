@@ -2,7 +2,7 @@ dist/
 rockset_stacky.egg-info/
 src/rockset_stacky.egg-info/
 build/
-src/stacky/__pycache__
+__pycache__/
 
 bazel-*
 .mypy_cache
